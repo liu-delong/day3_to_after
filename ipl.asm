@@ -30,23 +30,26 @@ readinit:
 	MOV CH,0    ;设置读取第0柱面
 	MOV CL,2    ;设置读取第2扇区
 	MOV DH,0    ;设置读取第0磁头
-	MOV DL,0    ;驱动器号填0
 	MOV BX,0    ;从ES*16+BX=8200开始存
 readloop:
 	MOV SI,0
 retry:
 	MOV AH,0x02 ;设置为读盘
 	MOV AL,1    ;设置每次中断读取一个扇区
+	MOV DL,0    ;驱动器号填0
 	INT 0x13
 	JNC next   ;如果成功读取就跳转到next
 	ADD SI,1
 	CMP SI,5   
-	JB retry   ;如果还没重复够5次，则重试
-	JMP load_error    ;否则，跳到结束，硬盘有问题
+	JAE load_error   ;如果重试超过5次，则跳转到错误
+	MOV AH,0x00
+	MOV DL,0
+	INT 0x13    ;重置磁盘
+	JMP retry	
 next:
-	MOV AH,0x02 ;设置为读盘
-	MOV AL,1    ;设置每次中断读取一个扇区
-	ADD BX,512  ;缓冲区后移动512字节
+	MOV AX,ES
+	ADD AX,512/16
+	MOV ES,AX
 	ADD CL,1
 	CMP CL,18
 	JBE readloop
@@ -57,9 +60,11 @@ next:
 	MOV DH,0
 	ADD CH,1
 	CMP CH,10
-	JBE readloop
+	JB readloop
 	JMP entry
 entry:
+	MOV	[0x0ff0],CH
+	JMP 0xc200
 	MOV SI,data
 putloop:
     ;为显卡中断做参数准备
@@ -80,7 +85,7 @@ load_error:
 	JMP putloop
 data:
     DB 0x0a ;换行
-    DB "hello_world!"
+    DB "hello_worl!"
     DB 0x0a ;换行
     DB 0 ;结束符
 load_error_msg:
